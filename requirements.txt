@@ -1,0 +1,9 @@
+configargparse
+matplotlib
+opencv-python
+scikit-image
+scipy
+imageio
+tqdm
+#uncomment if outside of google colab
+#cupy
