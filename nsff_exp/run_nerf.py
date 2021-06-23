@@ -170,7 +170,7 @@ def train():
         hwf = poses[0,:3,-1]
         poses = poses[:,:3,:4]
         print('Loaded llff', images.shape, render_poses.shape, hwf, args.datadir)
-        i_test = []
+        i_test = [1]
         i_val = [] #i_test
         i_train = np.array([i for i in np.arange(int(images.shape[0])) if
                         (i not in i_test and i not in i_val)])
@@ -300,7 +300,7 @@ def train():
 
     poses = torch.Tensor(poses).to(device)
 
-    N_iters = 500 * 1000 #1000000
+    N_iters = 20000#500 * 1000 #1000000
     print('Begin')
     print('TRAIN views are', i_train)
     print('TEST views are', i_test)
@@ -446,6 +446,7 @@ def train():
             target_bwd_mask = bwd_mask[select_coords[:, 0], 
                                      select_coords[:, 1]].unsqueeze(-1)#.repeat(1, 2)
 
+        #find me ben
         img_idx_embed = img_i/num_img * 2. - 1.0
 
         #####  Core optimization loop  #####
