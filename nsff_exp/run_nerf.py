@@ -12,6 +12,7 @@ import cv2
 from render_utils import *
 from run_nerf_helpers import *
 from load_llff import *
+from tqdm import tqdm
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 np.random.seed(1)
@@ -314,7 +315,8 @@ def train():
 
     chain_bwd = 0
 
-    for i in range(start, N_iters):
+
+    for i in tqdm(range(start, N_iters)):
         chain_bwd = 1 - chain_bwd
         time0 = time.time()
         # print('expname ', expname, ' chain_bwd ', chain_bwd,
@@ -617,7 +619,7 @@ def train():
         ################################
 
         dt = time.time()-time0
-        print(f"Step: {global_step}, Loss: {loss}, Time: {dt}")
+        # print(f"Step: {global_step}, Loss: {loss}, Time: {dt}")
         #####           end            #####
 
         # Rest is logging
