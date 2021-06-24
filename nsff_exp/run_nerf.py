@@ -317,9 +317,9 @@ def train():
     for i in range(start, N_iters):
         chain_bwd = 1 - chain_bwd
         time0 = time.time()
-        print('expname ', expname, ' chain_bwd ', chain_bwd, 
-            ' lindisp ', args.lindisp, ' decay_iteration ', decay_iteration)
-        print('Random FROM SINGLE IMAGE')
+        # print('expname ', expname, ' chain_bwd ', chain_bwd,
+        #     ' lindisp ', args.lindisp, ' decay_iteration ', decay_iteration)
+        # print('Random FROM SINGLE IMAGE')
         # Random from one image
         img_i = np.random.choice(i_train)
 
@@ -402,9 +402,9 @@ def train():
             coords = torch.reshape(coords, [-1,2])  # (H * W, 2)
 
             if args.use_motion_mask and i < decay_iteration * 1000:
-                print('HARD MINING STAGE !')
+                # print('HARD MINING STAGE !')
                 num_extra_sample = args.num_extra_sample
-                print('num_extra_sample ', num_extra_sample)
+                # print('num_extra_sample ', num_extra_sample)
                 select_inds_hard = np.random.choice(hard_coords.shape[0], 
                                                     size=[min(hard_coords.shape[0], 
                                                         num_extra_sample)], 
@@ -455,7 +455,7 @@ def train():
         else:
             chain_5frames = True
 
-        print('chain_5frames ', chain_5frames)
+        # print('chain_5frames ', chain_5frames)
         # print('use_rgb_w ', args.use_rgb_w, ' w_prob_reg', args.w_prob_reg)
 
         ret = render(img_idx_embed, chain_bwd, chain_5frames,
@@ -522,15 +522,15 @@ def train():
 
         depth_loss = w_depth * compute_depth_loss(ret['depth_map_ref_dy'], -target_depth)
 
-        print('w_depth ', w_depth, 'w_of ', w_of)
+        # print('w_depth ', w_depth, 'w_of ', w_of)
 
         if img_i == 0:
-            print('only fwd flow')
+            # print('only fwd flow')
             flow_loss = w_of * compute_mae(render_of_fwd, 
                                         target_of_fwd, 
                                         target_fwd_mask)#torch.sum(torch.abs(render_of_fwd - target_of_fwd) * target_fwd_mask)/(torch.sum(target_fwd_mask) + 1e-8)
         elif img_i == num_img - 1:
-            print('only bwd flow')
+            # print('only bwd flow')
             flow_loss = w_of * compute_mae(render_of_bwd, 
                                         target_of_bwd, 
                                         target_bwd_mask)#torch.sum(torch.abs(render_of_bwd - target_of_bwd) * target_bwd_mask)/(torch.sum(target_bwd_mask) + 1e-8)
@@ -597,13 +597,13 @@ def train():
 
         loss = sf_reg_loss + sf_cycle_loss + render_loss + flow_loss + sf_sm_loss + prob_reg_loss + depth_loss 
 
-        print('render_loss ', render_loss.item(), 
-            ' bidirection_loss ', sf_cycle_loss.item(), 
-            ' sf_reg_loss ', sf_reg_loss.item())
-        print('depth_loss ', depth_loss.item(), 
-            ' flow_loss ', flow_loss.item(), 
-            ' sf_sm_loss ', sf_sm_loss.item())
-        print('prob_reg_loss ', prob_reg_loss.item())
+        # print('render_loss ', render_loss.item(),
+        #     ' bidirection_loss ', sf_cycle_loss.item(),
+        #     ' sf_reg_loss ', sf_reg_loss.item())
+        # print('depth_loss ', depth_loss.item(),
+        #     ' flow_loss ', flow_loss.item(),
+        #     ' sf_sm_loss ', sf_sm_loss.item())
+        # print('prob_reg_loss ', prob_reg_loss.item())
         loss.backward()
         optimizer.step()
 
@@ -661,6 +661,11 @@ def train():
         # """
         if i%args.i_img == 0 and i > 0:
             # img_i = np.random.choice(i_val)
+            print("writing images")
+
+            #write the target image:
+            img_i = target_idx
+
             target = images[img_i]
             pose = poses[img_i, :3,:4]
             target_depth = depths[img_i] - torch.min(depths[img_i])
@@ -691,8 +696,9 @@ def train():
                             flow_bwd_rgb, global_step=i, dataformats='HWC')
 
             with torch.no_grad():
+                torch.cuda.empty_cache()
                 ret = render(img_idx_embed, chain_bwd, False,
-                             num_img, H, W, focal, 
+                             num_img, H, W, focal,
                              chunk=1024*16, c2w=pose,
                              **render_kwargs_train)
 
@@ -703,10 +709,13 @@ def train():
 
                 render_flow_fwd_rgb = torch.Tensor(flow_to_image(render_of_fwd.cpu().numpy())/255.)#.cuda()
                 render_flow_bwd_rgb = torch.Tensor(flow_to_image(render_of_bwd.cpu().numpy())/255.)#.cuda()
-                
-                writer.add_image("val/rgb_map_ref", torch.clamp(ret['rgb_map_ref'], 0., 1.), 
-                                global_step=i, dataformats='HWC')
-                writer.add_image("val/depth_map_ref", normalize_depth(ret['depth_map_ref']), 
+
+                for key in ret.keys():
+                    ret[key] = ret[key].to(torch.device("cpu"))
+
+                writer.add_image("val/rgb_map_ref", torch.clamp(ret['rgb_map_ref'], 0., 1.),
+                                 global_step=i, dataformats='HWC')
+                writer.add_image("val/depth_map_ref", normalize_depth(ret['depth_map_ref']),
                                 global_step=i, dataformats='HW')
                
                 writer.add_image("val/gt_rgb", target, 
@@ -720,8 +729,7 @@ def train():
                 writer.add_image("val/render_flow_bwd_rgb", render_flow_bwd_rgb, 
                                 global_step=i, dataformats='HWC')
 
-
-            # torch.cuda.empty_cache()
+            torch.cuda.empty_cache()
 
         global_step += 1
 
