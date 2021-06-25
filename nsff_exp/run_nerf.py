@@ -89,6 +89,8 @@ def config_parser():
                         help='do not optimize, reload weights and render out render_poses path')
     parser.add_argument("--render_factor", type=int, default=0, 
                         help='downsampling factor to speed up rendering, set 4 or 8 for fast preview')
+    parser.add_argument("--render_frame", action='store_true',
+                        help='do not optimize, reload weights and render only the target index frame')
 
     # dataset options
     parser.add_argument("--dataset_type", type=str, default='llff', 
@@ -227,6 +229,44 @@ def train():
     render_kwargs_train.update(bds_dict)
     render_kwargs_test.update(bds_dict)
 
+    if args.render_frame:
+        print("RENDERING SINGLE FRAME")
+        num_img = float(poses.shape[0])
+        img_idx_embed = target_idx/float(num_img) * 2. - 1.0
+
+        poses = torch.Tensor(poses).to(device)
+        pose = poses[target_idx, :3, :4]
+        chain_bwd = 1
+        torch.cuda.empty_cache()
+        with torch.no_grad():
+            ret = render(img_idx_embed, chain_bwd, False,
+                         num_img, H, W, focal,
+                         chunk=1024*16, c2w=pose,
+                         **render_kwargs_test)
+            for key in ret.keys():
+                ret[key] = ret[key].to(torch.device("cpu"))
+
+            depth = torch.clamp(ret['depth_map_ref'], 0., 1.)
+            rgb = ret['rgb_map_ref'].cpu().numpy()
+
+            rgb8 = to8b(rgb)
+            depth8 = to8b(depth.unsqueeze(-1).repeat(1, 1, 3).cpu().numpy())
+
+            start_y = (rgb8.shape[1] - 512) // 2
+            rgb8 = rgb8[:, start_y:start_y+ 512, :]
+            depth8 = depth8[:, start_y:start_y+ 512, :]
+
+            testsavedir = os.path.join(basedir, expname,
+                                       'rendered_frames-%03d' % \
+                                       target_idx + '_{}_{:06d}'.format('test' if args.render_test else 'path', start))
+            save_img_dir = os.path.join(testsavedir, 'images')
+            os.makedirs(save_img_dir, exist_ok=True)
+            filename = os.path.join(save_img_dir, '{:03d}-img.jpg'.format(target_idx))
+
+            imageio.imwrite(filename, rgb8)
+            filename = os.path.join(save_img_dir, '{:03d}-depth.jpg'.format(target_idx))
+            imageio.imwrite(filename, depth8)
+        return
 
     if args.render_bt:
         print('RENDER VIEW INTERPOLATION')
@@ -448,7 +488,6 @@ def train():
             target_bwd_mask = bwd_mask[select_coords[:, 0], 
                                      select_coords[:, 1]].unsqueeze(-1)#.repeat(1, 2)
 
-        #find me ben
         img_idx_embed = img_i/num_img * 2. - 1.0
 
         #####  Core optimization loop  #####
