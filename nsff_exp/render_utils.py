@@ -80,6 +80,18 @@ def splat_rgb_img(ret, ratio, R_w2t, t_w2t, j, H, W, focal, fwd_flow):
 
     return splat_alpha_dy, splat_rgb_dy, splat_alpha_rig, splat_rgb_rig
 
+def convert_images_to_video(path, fps):
+  fileList = []
+  for file in os.listdir(path):
+      fileList.append(path + '/' + file)
+
+  writer = imageio.get_writer(path + '/vid.mp4', fps=fps)
+  fileList.sort()
+  from pdb import set_trace
+  set_trace()
+  for im in fileList:
+      writer.append_data(imageio.imread(im))
+  writer.close()
 
 from poseInterpolator import *
 

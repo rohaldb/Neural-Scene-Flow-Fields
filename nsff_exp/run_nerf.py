@@ -266,6 +266,7 @@ def train():
                                gt_imgs=images, savedir=testsavedir, 
                                render_factor=args.render_factor)
 
+            convert_images_to_video(testsavedir, fps=20)
         return
 
     if args.render_lockcam_slowmo:
@@ -284,6 +285,7 @@ def train():
                             render_factor=args.render_factor,
                             target_idx=target_idx)
 
+            convert_images_to_video(testsavedir, fps=20)
             return 
 
     if args.render_slowmo_bt:
@@ -307,6 +309,7 @@ def train():
                             gt_imgs=images, savedir=testsavedir, 
                             render_factor=args.render_factor, 
                             target_idx=10)
+            convert_images_to_video(testsavedir, fps=20)
             # print('Done rendering', i,testsavedir)
 
         return
