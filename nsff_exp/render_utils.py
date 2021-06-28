@@ -627,6 +627,34 @@ def render(img_idx, chain_bwd, chain_5frames,
     # return ret_list + [ret_dict]
     return all_ret
 
+"""
+Renders the target index depth map and rgb image and writes to disk
+"""
+def render_single_frame(target_idx, img_idx_embed, chain_bwd, num_img, H, W, focal, pose, render_kwargs, save_dir):
+    ret = render(img_idx_embed, chain_bwd, False,
+                 num_img, H, W, focal,
+                 chunk=1024 * 16, c2w=pose,
+                 **render_kwargs)
+    for key in ret.keys():
+        ret[key] = ret[key].to(torch.device("cpu"))
+
+    depth = torch.clamp(ret['depth_map_ref'], 0., 1.)
+    rgb = ret['rgb_map_ref'].cpu().numpy()
+
+    rgb8 = to8b(rgb)
+    depth8 = to8b(depth.unsqueeze(-1).repeat(1, 1, 3).cpu().numpy())
+
+    start_y = (rgb8.shape[1] - 512) // 2
+    rgb8 = rgb8[:, start_y:start_y + 512, :]
+    depth8 = depth8[:, start_y:start_y + 512, :]
+
+    save_img_dir = os.path.join(save_dir, 'images')
+    os.makedirs(save_img_dir, exist_ok=True)
+    filename = os.path.join(save_img_dir, '{:03d}-img.jpg'.format(target_idx))
+
+    imageio.imwrite(filename, rgb8)
+    filename = os.path.join(save_img_dir, '{:03d}-depth.jpg'.format(target_idx))
+    imageio.imwrite(filename, depth8)
 
 def render_bullet_time(render_poses, img_idx_embed, num_img, 
                     hwf, chunk, render_kwargs, gt_imgs=None, savedir=None, render_factor=0):

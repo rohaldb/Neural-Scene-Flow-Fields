@@ -122,8 +122,8 @@ class NeRF(nn.Module):
             if i in self.skips:
                 h = torch.cat([input_pts, h], -1)
 
-        sf = nn.functional.tanh(self.sf_linear(h))
-        prob = nn.functional.sigmoid(self.prob_linear(h))
+        sf = torch.tanh(self.sf_linear(h))
+        prob = torch.sigmoid(self.prob_linear(h))
 
         if self.use_viewdirs:
             alpha = self.alpha_linear(h)
@@ -189,7 +189,7 @@ class Rigid_NeRF(nn.Module):
             if i in self.skips:
                 h = torch.cat([input_pts, h], -1)
 
-        v = nn.functional.sigmoid(self.w_linear(h))
+        v = torch.sigmoid(self.w_linear(h))
 
         if self.use_viewdirs:
             alpha = self.alpha_linear(h)
