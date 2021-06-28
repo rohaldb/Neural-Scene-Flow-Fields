@@ -87,8 +87,6 @@ def convert_images_to_video(path, fps):
 
   writer = imageio.get_writer(path + '/vid.mp4', fps=fps)
   fileList.sort()
-  from pdb import set_trace
-  set_trace()
   for im in fileList:
       writer.append_data(imageio.imread(im))
   writer.close()
@@ -208,7 +206,8 @@ def render_lockcam_slowmo(ref_c2w, num_img,
                         hwf, chunk, render_kwargs, 
                         gt_imgs=None, savedir=None, 
                         render_factor=0,
-                        target_idx=5):
+                        target_idx=5,
+                        skip_blending=False):
 
     H, W, focal = hwf
 
@@ -231,60 +230,79 @@ def render_lockcam_slowmo(ref_c2w, num_img,
     count = 0
 
     for i, cur_time in enumerate(np.linspace(target_idx - 1., target_idx + 1., 15 + 1).tolist()):
-        ratio = cur_time - np.floor(cur_time)
 
-        render_pose = ref_c2w[:3,:4] #render_poses[i % num_frame_per_cycle][:3,:4]
-
-        R_w2t = render_pose[:3, :3].transpose(0, 1)
-        t_w2t = -torch.matmul(R_w2t, render_pose[:3, 3:4])
-
-        num_img = gt_imgs.shape[0]
-        img_idx_embed_1 = (np.floor(cur_time))/float(num_img) * 2. - 1.0
-        img_idx_embed_2 = (np.floor(cur_time) + 1)/float(num_img) * 2. - 1.0
-        print('render lock camera time ', i, cur_time, ratio, time.time() - t)
+        render_pose = ref_c2w[:3,:4]
         t = time.time()
 
-        ret1 = render_sm(img_idx_embed_1, 0, False,
-                        num_img, 
-                        H, W, focal, 
-                        chunk=1024*16, 
-                        c2w=render_pose,
-                        **render_kwargs)
+        if skip_blending:
+            img_idx_embed = cur_time/float(num_img) * 2. - 1.0
+            print('render lock camera time ', i, cur_time, time.time() - t)
 
-        ret2 = render_sm(img_idx_embed_2, 0, False,
-                        num_img, 
-                        H, W, focal, 
-                        chunk=1024*16, 
-                        c2w=render_pose, 
-                        **render_kwargs)
+            ret1 = render(img_idx_embed, 0, False,
+                             num_img,
+                             H, W, focal,
+                             chunk=1024 * 16,
+                             c2w=render_pose,
+                             **render_kwargs)
 
-        T_i = torch.ones((1, H, W))
-        final_rgb = torch.zeros((3, H, W))
-        num_sample = ret1['raw_rgb'].shape[2]
+            filename = os.path.join(savedir, '%03d.jpg'%(i))
 
-        for j in range(0, num_sample):
-            splat_alpha_dy_1, splat_rgb_dy_1, \
-            splat_alpha_rig_1, splat_rgb_rig_1 = splat_rgb_img(ret1, ratio, R_w2t, 
-                                                               t_w2t, j, H, W, 
-                                                               focal, True)
-            splat_alpha_dy_2, splat_rgb_dy_2, \
-            splat_alpha_rig_2, splat_rgb_rig_2 = splat_rgb_img(ret2, 1. - ratio, R_w2t, 
-                                                               t_w2t, j, H, W, 
-                                                               focal, False)
+            rgb8 = to8b(ret1['rgb_map_ref'].cpu().numpy())
 
-            final_rgb += T_i * (splat_alpha_dy_1 * splat_rgb_dy_1 + \
-                                splat_alpha_rig_1 * splat_rgb_rig_1 ) * (1.0 - ratio)
-            final_rgb += T_i * (splat_alpha_dy_2 * splat_rgb_dy_2 + \
-                                splat_alpha_rig_2 * splat_rgb_rig_2 ) * ratio
+        else:
+            ratio = cur_time - np.floor(cur_time)
 
-            alpha_1_final = (1.0 - (1. - splat_alpha_dy_1) * (1. - splat_alpha_rig_1) ) * (1. - ratio)
-            alpha_2_fianl = (1.0 - (1. - splat_alpha_dy_2) * (1. - splat_alpha_rig_2) ) * ratio
-            alpha_final = alpha_1_final + alpha_2_fianl
 
-            T_i = T_i * (1.0 - alpha_final + 1e-10)
+            R_w2t = render_pose[:3, :3].transpose(0, 1)
+            t_w2t = -torch.matmul(R_w2t, render_pose[:3, 3:4])
 
-        filename = os.path.join(savedir, '%03d.jpg'%(i))
-        rgb8 = to8b(final_rgb.permute(1, 2, 0).cpu().numpy())
+            num_img = gt_imgs.shape[0]
+            img_idx_embed_1 = (np.floor(cur_time))/float(num_img) * 2. - 1.0
+            img_idx_embed_2 = (np.floor(cur_time) + 1)/float(num_img) * 2. - 1.0
+            print('render lock camera time ', i, cur_time, ratio, time.time() - t)
+            t = time.time()
+
+            ret1 = render_sm(img_idx_embed_1, 0, False,
+                            num_img,
+                            H, W, focal,
+                            chunk=1024*16,
+                            c2w=render_pose,
+                            **render_kwargs)
+
+            ret2 = render_sm(img_idx_embed_2, 0, False,
+                            num_img,
+                            H, W, focal,
+                            chunk=1024*16,
+                            c2w=render_pose,
+                            **render_kwargs)
+
+            T_i = torch.ones((1, H, W))
+            final_rgb = torch.zeros((3, H, W))
+            num_sample = ret1['raw_rgb'].shape[2]
+
+            for j in range(0, num_sample):
+                splat_alpha_dy_1, splat_rgb_dy_1, \
+                splat_alpha_rig_1, splat_rgb_rig_1 = splat_rgb_img(ret1, ratio, R_w2t,
+                                                                   t_w2t, j, H, W,
+                                                                   focal, True)
+                splat_alpha_dy_2, splat_rgb_dy_2, \
+                splat_alpha_rig_2, splat_rgb_rig_2 = splat_rgb_img(ret2, 1. - ratio, R_w2t,
+                                                                   t_w2t, j, H, W,
+                                                                   focal, False)
+
+                final_rgb += T_i * (splat_alpha_dy_1 * splat_rgb_dy_1 + \
+                                    splat_alpha_rig_1 * splat_rgb_rig_1 ) * (1.0 - ratio)
+                final_rgb += T_i * (splat_alpha_dy_2 * splat_rgb_dy_2 + \
+                                    splat_alpha_rig_2 * splat_rgb_rig_2 ) * ratio
+
+                alpha_1_final = (1.0 - (1. - splat_alpha_dy_1) * (1. - splat_alpha_rig_1) ) * (1. - ratio)
+                alpha_2_fianl = (1.0 - (1. - splat_alpha_dy_2) * (1. - splat_alpha_rig_2) ) * ratio
+                alpha_final = alpha_1_final + alpha_2_fianl
+
+                T_i = T_i * (1.0 - alpha_final + 1e-10)
+
+            filename = os.path.join(savedir, '%03d.jpg'%(i))
+            rgb8 = to8b(final_rgb.permute(1, 2, 0).cpu().numpy())
 
         start_y = (rgb8.shape[1] - 512) // 2
         rgb8 = rgb8[:, start_y:start_y+ 512, :]

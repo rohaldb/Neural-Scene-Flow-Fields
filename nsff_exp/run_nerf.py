@@ -33,7 +33,7 @@ def config_parser():
                         help='input data directory')
     parser.add_argument("--render_lockcam_slowmo", action='store_true', 
                         help='render fixed view + slowmo')
-    parser.add_argument("--render_slowmo_bt", action='store_true', 
+    parser.add_argument("--render_slowmo_bt", action='store_true',
                         help='render space-time interpolation')
 
     parser.add_argument("--final_height", type=int, default=288, 
@@ -89,8 +89,10 @@ def config_parser():
                         help='do not optimize, reload weights and render out render_poses path')
     parser.add_argument("--render_factor", type=int, default=0, 
                         help='downsampling factor to speed up rendering, set 4 or 8 for fast preview')
-    parser.add_argument("--render_frame", action='store_true',
+    parser.add_argument("--render_single_frame", action='store_true',
                         help='do not optimize, reload weights and render only the target index frame')
+    parser.add_argument("--skip_blending", action='store_true',
+                        help='skips the blending of images when doing fixed lockcam slowmo')
 
     # dataset options
     parser.add_argument("--dataset_type", type=str, default='llff', 
@@ -229,7 +231,7 @@ def train():
     render_kwargs_train.update(bds_dict)
     render_kwargs_test.update(bds_dict)
 
-    if args.render_frame:
+    if args.render_single_frame:
         print("RENDERING SINGLE FRAME")
         num_img = float(poses.shape[0])
         img_idx_embed = target_idx/float(num_img) * 2. - 1.0
@@ -283,7 +285,8 @@ def train():
                             args.chunk, render_kwargs_test, 
                             gt_imgs=images, savedir=testsavedir, 
                             render_factor=args.render_factor,
-                            target_idx=target_idx)
+                            target_idx=target_idx,
+                            skip_blending=args.skip_blending)
 
             convert_images_to_video(testsavedir, fps=20)
             return 
