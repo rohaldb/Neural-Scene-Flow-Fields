@@ -308,7 +308,7 @@ def train():
                             hwf, args.chunk, render_kwargs_test,
                             gt_imgs=images, savedir=testsavedir, 
                             render_factor=args.render_factor, 
-                            target_idx=10)
+                            target_idx=args.target_idx)
             convert_images_to_video(testsavedir, fps=20)
             # print('Done rendering', i,testsavedir)
 

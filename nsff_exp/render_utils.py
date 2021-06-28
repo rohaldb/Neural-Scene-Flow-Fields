@@ -118,7 +118,7 @@ def render_slowmo_bt(disps, render_poses, bt_poses,
     os.makedirs(save_img_dir, exist_ok=True)
     # os.makedirs(save_depth_dir, exist_ok=True)
 
-    for i, cur_time in enumerate(np.linspace(target_idx - 10., target_idx + 10., 200 + 1).tolist()):
+    for i, cur_time in enumerate(np.linspace(target_idx - 1., target_idx + 1., 5 + 1).tolist()):
         flow_time = int(np.floor(cur_time))
         ratio = cur_time - np.floor(cur_time)
         print('cur_time ', i, cur_time, ratio)
@@ -230,7 +230,7 @@ def render_lockcam_slowmo(ref_c2w, num_img,
 
     count = 0
 
-    for i, cur_time in enumerate(np.linspace(target_idx - 8., target_idx + 8., 160 + 1).tolist()):
+    for i, cur_time in enumerate(np.linspace(target_idx - 1., target_idx + 1., 15 + 1).tolist()):
         ratio = cur_time - np.floor(cur_time)
 
         render_pose = ref_c2w[:3,:4] #render_poses[i % num_frame_per_cycle][:3,:4]
