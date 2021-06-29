@@ -83,7 +83,8 @@ def splat_rgb_img(ret, ratio, R_w2t, t_w2t, j, H, W, focal, fwd_flow):
 def convert_images_to_video(path, fps):
   fileList = []
   for file in os.listdir(path):
-      fileList.append(path + '/' + file)
+      if "jpg" in file:
+        fileList.append(path + '/' + file)
 
   writer = imageio.get_writer(path + '/vid.mp4', fps=fps)
   fileList.sort()
