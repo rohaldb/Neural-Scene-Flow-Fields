@@ -93,6 +93,8 @@ def config_parser():
                         help='do not optimize, reload weights and render only the target index frame')
     parser.add_argument("--skip_blending", action='store_true',
                         help='skips the blending of images when doing fixed lockcam slowmo')
+    parser.add_argument("--output_lockcam_flow", action='store_true',
+                        help='writes optical flow files to disk during rendering of lockcam slowmo')
 
     # dataset options
     parser.add_argument("--dataset_type", type=str, default='llff', 
@@ -175,7 +177,7 @@ def train():
         hwf = poses[0,:3,-1]
         poses = poses[:,:3,:4]
         print('Loaded llff', images.shape, render_poses.shape, hwf, args.datadir)
-        i_test = [1]
+        i_test = []
         i_val = [] #i_test
         i_train = np.array([i for i in np.arange(int(images.shape[0])) if
                         (i not in i_test and i not in i_val)])
@@ -276,17 +278,20 @@ def train():
 
         num_img = float(poses.shape[0])
         ref_c2w = torch.Tensor(ref_c2w).to(device)
+        pose = poses[target_idx, :3, :4]
         print('target_idx ', target_idx)
 
         testsavedir = os.path.join(basedir, expname, 'render-lockcam-slowmo')
         os.makedirs(testsavedir, exist_ok=True)
         with torch.no_grad():
-            render_lockcam_slowmo(ref_c2w, num_img, hwf, 
-                            args.chunk, render_kwargs_test, 
-                            gt_imgs=images, savedir=testsavedir, 
+            render_lockcam_slowmo(ref_c2w, num_img, hwf,
+                            args.chunk, render_kwargs_train, render_kwargs_test, pose,
+                            gt_imgs=images, savedir=testsavedir,
                             render_factor=args.render_factor,
                             target_idx=target_idx,
-                            skip_blending=args.skip_blending)
+                            skip_blending=args.skip_blending,
+                            output_flow = args.output_lockcam_flow
+                            )
 
             convert_images_to_video(testsavedir, fps=20)
             return 

@@ -83,7 +83,7 @@ def splat_rgb_img(ret, ratio, R_w2t, t_w2t, j, H, W, focal, fwd_flow):
 def convert_images_to_video(path, fps):
   fileList = []
   for file in os.listdir(path):
-      if "jpg" in file:
+      if "jpg" in file and not ('fwd' in file or 'bwd' in file):
         fileList.append(path + '/' + file)
 
   writer = imageio.get_writer(path + '/vid.mp4', fps=fps)
@@ -203,13 +203,14 @@ def render_slowmo_bt(disps, render_poses, bt_poses,
         # filename = os.path.join(save_depth_dir, '{:03d}.jpg'.format(i))
         # imageio.imwrite(filename, depth8)
 
-def render_lockcam_slowmo(ref_c2w, num_img, 
-                        hwf, chunk, render_kwargs, 
-                        gt_imgs=None, savedir=None, 
+def render_lockcam_slowmo(ref_c2w, num_img,
+                        hwf, chunk, render_kwargs_train, render_kwargs_test, pose,
+                        gt_imgs=None, savedir=None,
                         render_factor=0,
                         target_idx=5,
-                        skip_blending=False):
-
+                        skip_blending=False,
+                        output_flow = False
+                        ):
     H, W, focal = hwf
 
     if render_factor!=0:
@@ -230,6 +231,13 @@ def render_lockcam_slowmo(ref_c2w, num_img,
 
     count = 0
 
+    #speed up if not using scene flow
+    if skip_blending and output_flow:
+        pose = torch.tensor(pose)
+        render_kwargs = render_kwargs_train
+    else:
+        render_kwargs = render_kwargs_test
+
     for i, cur_time in enumerate(np.linspace(target_idx - 1., target_idx + 1., 15 + 1).tolist()):
 
         render_pose = ref_c2w[:3,:4]
@@ -239,16 +247,24 @@ def render_lockcam_slowmo(ref_c2w, num_img,
             img_idx_embed = cur_time/float(num_img) * 2. - 1.0
             print('render lock camera time ', i, cur_time, time.time() - t)
 
-            ret1 = render(img_idx_embed, 0, False,
+            ret = render(img_idx_embed, 0, False,
                              num_img,
                              H, W, focal,
                              chunk=1024 * 16,
                              c2w=render_pose,
                              **render_kwargs)
 
-            filename = os.path.join(savedir, '%03d.jpg'%(i))
+            rgb8 = to8b(ret['rgb_map_ref'].cpu().numpy())
 
-            rgb8 = to8b(ret1['rgb_map_ref'].cpu().numpy())
+
+            if output_flow:
+                render_of_fwd, render_of_bwd = compute_optical_flow(pose, pose, pose,
+                                                                    H, W, focal, ret, n_dim=2)
+                render_flow_fwd_rgb = torch.Tensor(flow_to_image(render_of_fwd.cpu().numpy())/255.)#.cuda()
+                render_flow_bwd_rgb = torch.Tensor(flow_to_image(render_of_bwd.cpu().numpy())/255.)#.cuda()
+
+                imageio.imwrite(os.path.join(savedir, '%03d-fwd.jpg'%(i)), to8b(render_flow_fwd_rgb.cpu().numpy()))
+                imageio.imwrite(os.path.join(savedir, '%03d-bwd.jpg'%(i)), to8b(render_flow_bwd_rgb.cpu().numpy()))
 
         else:
             ratio = cur_time - np.floor(cur_time)
@@ -302,11 +318,11 @@ def render_lockcam_slowmo(ref_c2w, num_img,
 
                 T_i = T_i * (1.0 - alpha_final + 1e-10)
 
-            filename = os.path.join(savedir, '%03d.jpg'%(i))
             rgb8 = to8b(final_rgb.permute(1, 2, 0).cpu().numpy())
 
         start_y = (rgb8.shape[1] - 512) // 2
         rgb8 = rgb8[:, start_y:start_y+ 512, :]
+        filename = os.path.join(savedir, '%03d.jpg' % (i))
 
         imageio.imwrite(filename, rgb8)
 
