@@ -4,6 +4,7 @@ opencv-python
 scikit-image
 scipy
 imageio
+av
 tqdm
 #uncomment if outside of google colab
 #cupy

@@ -80,17 +80,13 @@ def splat_rgb_img(ret, ratio, R_w2t, t_w2t, j, H, W, focal, fwd_flow):
 
     return splat_alpha_dy, splat_rgb_dy, splat_alpha_rig, splat_rgb_rig
 
-def convert_images_to_video(path, fps):
-  fileList = []
-  for file in os.listdir(path):
-      if "jpg" in file and not ('fwd' in file or 'bwd' in file):
-        fileList.append(path + '/' + file)
-
-  writer = imageio.get_writer(path + '/vid.mp4', fps=fps)
-  fileList.sort()
-  for im in fileList:
-      writer.append_data(imageio.imread(im))
-  writer.close()
+def convert_images_to_video(images, path, fps=20):
+    video_path = path + '/vid.mp4'
+    writer = imageio.get_writer(video_path, fps=fps)
+    for im in images:
+      writer.append_data(im)
+    writer.close()
+    return video_path
 
 from poseInterpolator import *
 
@@ -238,6 +234,8 @@ def render_lockcam_slowmo(ref_c2w, num_img,
     else:
         render_kwargs = render_kwargs_test
 
+    rendered_images = []
+
     for i, cur_time in enumerate(np.linspace(target_idx - 1., target_idx + 1., 15).tolist()):
 
         render_pose = ref_c2w[:3,:4]
@@ -245,7 +243,7 @@ def render_lockcam_slowmo(ref_c2w, num_img,
 
         if skip_blending:
             img_idx_embed = cur_time/float(num_img) * 2. - 1.0
-            print('render lock camera time ', i, cur_time, time.time() - t)
+            print('render lock camera time ', i, cur_time)
 
             ret = render(img_idx_embed, 0, False,
                              num_img,
@@ -325,6 +323,10 @@ def render_lockcam_slowmo(ref_c2w, num_img,
         filename = os.path.join(savedir, '%03d.jpg' % (i))
 
         imageio.imwrite(filename, rgb8)
+        rendered_images.append(rgb8)
+
+    video_path = convert_images_to_video(rendered_images, savedir)
+    return video_path
 
 
 def render_sm(img_idx, chain_bwd, chain_5frames,

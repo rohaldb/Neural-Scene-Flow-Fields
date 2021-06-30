@@ -13,6 +13,7 @@ from render_utils import *
 from run_nerf_helpers import *
 from load_llff import *
 from tqdm import tqdm
+import torchvision
 
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
 np.random.seed(1)
@@ -269,8 +270,6 @@ def train():
                                args.chunk, render_kwargs_test, 
                                gt_imgs=images, savedir=testsavedir, 
                                render_factor=args.render_factor)
-
-            convert_images_to_video(testsavedir, fps=20)
         return
 
     if args.render_lockcam_slowmo:
@@ -293,8 +292,7 @@ def train():
                             output_flow = args.output_lockcam_flow
                             )
 
-            convert_images_to_video(testsavedir, fps=20)
-            return 
+            return
 
     if args.render_slowmo_bt:
         print('RENDER SLOW MOTION')
@@ -317,8 +315,6 @@ def train():
                             gt_imgs=images, savedir=testsavedir, 
                             render_factor=args.render_factor, 
                             target_idx=args.target_idx)
-            convert_images_to_video(testsavedir, fps=20)
-            # print('Done rendering', i,testsavedir)
 
         return
 
@@ -331,7 +327,7 @@ def train():
 
     poses = torch.Tensor(poses).to(device)
 
-    N_iters = 20000#500 * 1000 #1000000
+    N_iters = 75000#500 * 1000 #1000000
     print('Begin')
     print('TRAIN views are', i_train)
     print('TEST views are', i_test)
@@ -760,9 +756,37 @@ def train():
                 writer.add_image("val/render_flow_bwd_rgb", render_flow_bwd_rgb, 
                                 global_step=i, dataformats='HWC')
 
+
+            ### write video to tensorboard ###
+
+            num_img = float(poses.shape[0])
+            ref_c2w = torch.Tensor(ref_c2w).to(device)
+            pose = poses[target_idx, :3, :4]
+
+            testsavedir = os.path.join(basedir, expname, 'render-lockcam-slowmo')
+            os.makedirs(testsavedir, exist_ok=True)
+
+            with torch.no_grad():
+                video_path = render_lockcam_slowmo(ref_c2w, num_img, hwf,
+                                      args.chunk, render_kwargs_train, render_kwargs_test, pose,
+                                      gt_imgs=images, savedir=testsavedir,
+                                      render_factor=args.render_factor,
+                                      target_idx=target_idx,
+                                      skip_blending=True,
+                                      output_flow=False
+                                      )
+
+                video = torchvision.io.read_video(video_path)
+                v = torch.unsqueeze(video[0], 0)  # T, H, W, C
+                # transform to T,C,H,W
+                v = torch.swapaxes(v, 2, 4)
+                v = torch.swapaxes(v, 3, 4)
+                writer.add_video("val/lockcam-slomo", vid_tensor=v, global_step=i, fps=20)
+
             torch.cuda.empty_cache()
 
         global_step += 1
+
 
 
 if __name__=='__main__':
