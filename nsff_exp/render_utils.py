@@ -687,23 +687,31 @@ def render_single_frame(target_idx, img_idx_embed, chain_bwd, num_img, H, W, foc
     for key in ret.keys():
         ret[key] = ret[key].to(torch.device("cpu"))
 
+    # collect and process images
     depth = torch.clamp(ret['depth_map_ref'], 0., 1.)
-    rgb = ret['rgb_map_ref'].cpu().numpy()
+    depth = depth.unsqueeze(-1).repeat(1, 1, 3)
 
-    rgb8 = to8b(rgb)
-    depth8 = to8b(depth.unsqueeze(-1).repeat(1, 1, 3).cpu().numpy())
+    images = {
+        "depth": depth,
+        "ref": ret['rgb_map_ref'],
+        "prev_from_ref": ret['rgb_map_prev_dy'],
+        "post_from_ref": ret['rgb_map_post_dy'],
+        "prob_prev": ret['prob_map_post'].unsqueeze(-1),
+        "prob_post": ret['prob_map_post'].unsqueeze(-1)
+    }
 
-    start_y = (rgb8.shape[1] - 512) // 2
-    rgb8 = rgb8[:, start_y:start_y + 512, :]
-    depth8 = depth8[:, start_y:start_y + 512, :]
+    for name, image in images.items():
+        rgb8 = to8b(image.numpy())
 
-    save_img_dir = os.path.join(save_dir, 'images')
-    os.makedirs(save_img_dir, exist_ok=True)
-    filename = os.path.join(save_img_dir, '{:03d}-img.jpg'.format(target_idx))
+        start_y = (rgb8.shape[1] - 512) // 2
+        rgb8 = rgb8[:, start_y:start_y + 512, :]
 
-    imageio.imwrite(filename, rgb8)
-    filename = os.path.join(save_img_dir, '{:03d}-depth.jpg'.format(target_idx))
-    imageio.imwrite(filename, depth8)
+        save_img_dir = os.path.join(save_dir, 'images')
+        os.makedirs(save_img_dir, exist_ok=True)
+
+        filename = os.path.join(save_img_dir, '{:03d}-{}.jpg'.format(target_idx, name))
+        imageio.imwrite(filename, rgb8)
+
 
 def render_bullet_time(render_poses, img_idx_embed, num_img, 
                     hwf, chunk, render_kwargs, gt_imgs=None, savedir=None, render_factor=0):
