@@ -248,7 +248,7 @@ def train():
                                        'rendered_frames_{}_{:06d}'.format('test' if args.render_test else 'path', start))
 
             render_single_frame(target_idx, img_idx_embed, chain_bwd, num_img,
-                                H, W, focal, pose, render_kwargs_test, testsavedir)
+                                H, W, focal, pose, render_kwargs_train, testsavedir)
 
         return
 
