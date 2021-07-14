@@ -768,18 +768,18 @@ def train():
                 pose = poses[target_idx, :3, :4]
                 render_poses = torch.Tensor(render_poses).to(device)
 
-                # testsavedir = os.path.join(basedir, expname, 'render-lockcam-slowmo')
-                # os.makedirs(testsavedir, exist_ok=True)
-                # video_path = render_lockcam_slowmo(ref_c2w, num_img, hwf,
-                #                       args.chunk, render_kwargs_train, render_kwargs_test, pose,
-                #                       gt_imgs=images, savedir=testsavedir,
-                #                       render_factor=args.render_factor,
-                #                       target_idx=target_idx,
-                #                       skip_blending=True,
-                #                       output_flow=False
-                #                       )
-                #
-                # write_video_to_tensorboard(video_path, "lockcam-slomo", i, writer)
+                testsavedir = os.path.join(basedir, expname, 'render-lockcam-slowmo')
+                os.makedirs(testsavedir, exist_ok=True)
+                video_path = render_lockcam_slowmo(ref_c2w, num_img, hwf,
+                                      args.chunk, render_kwargs_train, render_kwargs_test, pose,
+                                      gt_imgs=images, savedir=testsavedir,
+                                      render_factor=args.render_factor,
+                                      target_idx=target_idx,
+                                      skip_blending=True,
+                                      output_flow=False
+                                      )
+
+                write_video_to_tensorboard(video_path, "lockcam-slomo", i, writer)
 
                 bt_render_poses = linearly_interpolate_poses(poses.cpu().numpy(), 10)
                 testsavedir = os.path.join(basedir, expname, 'render-spiral-frame')

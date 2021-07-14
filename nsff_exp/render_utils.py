@@ -7,7 +7,7 @@ import time
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
-
+import random
 
 from run_nerf_helpers import *
 
@@ -1140,20 +1140,22 @@ def render_rays(img_idx,
         ret['raw_sf_ref2post'] = raw_sf_ref2post
         ret['raw_pts_ref'] = pts_ref[:, :, :3]
 
-    img_idx_rep_post = torch.ones_like(pts[:, :, 0:1]) * (img_idx + 1./num_img * 2. )
-    pts_post = torch.cat([(pts_ref[:, :, :3] + raw_sf_ref2post), img_idx_rep_post] , -1)
+    eps = random.uniform(0, 1)
 
-    img_idx_rep_prev = torch.ones_like(pts[:, :, 0:1]) * (img_idx - 1./num_img * 2. )    
-    pts_prev = torch.cat([(pts_ref[:, :, :3] + raw_sf_ref2prev), img_idx_rep_prev] , -1)
+    img_idx_rep_post = torch.ones_like(pts[:, :, 0:1]) * (img_idx + eps*1./num_img * 2. )
+    pts_post = torch.cat([(pts_ref[:, :, :3] + eps*raw_sf_ref2post), img_idx_rep_post] , -1)
 
-    # render points at t - 1
+    img_idx_rep_prev = torch.ones_like(pts[:, :, 0:1]) * (img_idx - eps*1./num_img * 2. )
+    pts_prev = torch.cat([(pts_ref[:, :, :3] + eps*raw_sf_ref2prev), img_idx_rep_prev] , -1)
+
+    # render points at t - eps
     raw_prev = network_query_fn(pts_prev, viewdirs, network_fn)
     raw_rgba_prev = raw_prev[:, :, :4]
     raw_sf_prev2prevprev = raw_prev[:, :, 4:7]
     raw_sf_prev2ref = raw_prev[:, :, 7:10]
     # raw_blend_w_prev = raw_prev[:, :, 12]
 
-    # render from t - 1
+    # render from t - eps
     rgb_map_prev_dy, _, weights_prev_dy = raw2outputs_warp(raw_rgba_prev,
                                                            z_vals, rays_d, 
                                                            raw_noise_std)
@@ -1164,7 +1166,7 @@ def render_rays(img_idx,
     ret['raw_sf_prev2ref'] = raw_sf_prev2ref
     ret['rgb_map_prev_dy'] = rgb_map_prev_dy
     
-    # render points at t + 1
+    # render points at t + eps
     raw_post = network_query_fn(pts_post, viewdirs, network_fn)
     raw_rgba_post = raw_post[:, :, :4]
     raw_sf_post2ref = raw_post[:, :, 4:7]
