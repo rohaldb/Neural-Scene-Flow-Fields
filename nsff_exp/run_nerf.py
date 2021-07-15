@@ -331,7 +331,7 @@ def train():
 
     poses = torch.Tensor(poses).to(device)
 
-    N_iters = 10000#500 * 1000 #1000000
+    N_iters = 10000 + 1
     print('Begin')
     print('TRAIN views are', i_train)
     print('TEST views are', i_test)
@@ -520,6 +520,13 @@ def train():
                                    weight_map_post.unsqueeze(-1))
         render_loss += compute_mse(ret['rgb_map_prev_dy'], 
                                    target_rgb, 
+                                   weight_map_prev.unsqueeze(-1))
+
+        render_loss += compute_mse(ret['rgb_map_post_eps_dy'],
+                                   target_rgb,
+                                   weight_map_post.unsqueeze(-1))
+        render_loss += compute_mse(ret['rgb_map_prev_eps_dy'],
+                                   target_rgb,
                                    weight_map_prev.unsqueeze(-1))
 
         # union rendering loss
