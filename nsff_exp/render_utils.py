@@ -588,7 +588,9 @@ def batchify_rays(img_idx, chain_bwd, chain_5frames,
     """Render rays in smaller minibatches to avoid OOM.
     """
 
+
     all_ret = {}
+    epsilon = torch.rand(1)
     for i in range(0, rays_flat.shape[0], chunk):
         ret = render_rays(img_idx, chain_bwd, chain_5frames,
                         num_img, rays_flat[i:i+chunk], **kwargs)
@@ -598,7 +600,7 @@ def batchify_rays(img_idx, chain_bwd, chain_5frames,
             all_ret[k].append(ret[k])
 
     all_ret = {k : torch.cat(all_ret[k], 0) for k in all_ret}
-    
+    all_ret["epsilon"] = epsilon
     return all_ret
 
 
@@ -665,9 +667,11 @@ def render(img_idx, chain_bwd, chain_5frames,
     # Render and reshape
     all_ret = batchify_rays(img_idx, chain_bwd, chain_5frames, 
                         num_img, rays, chunk, **kwargs)
+
     for k in all_ret:
-        k_sh = list(sh[:-1]) + list(all_ret[k].shape[1:])
-        all_ret[k] = torch.reshape(all_ret[k], k_sh)
+        if k != "epsilon":
+            k_sh = list(sh[:-1]) + list(all_ret[k].shape[1:])
+            all_ret[k] = torch.reshape(all_ret[k], k_sh)
 
     # k_extract = ['rgb_map', 'disp_map', 'depth_map', 'scene_flow', 'raw_sf_t']
 
@@ -1032,6 +1036,7 @@ def render_rays(img_idx,
                 network_query_fn, 
                 rigid_network_query_fn,
                 N_samples,
+                epsilon = 0.5,
                 retraw=False,
                 lindisp=False,
                 perturb=0.,
@@ -1175,12 +1180,11 @@ def render_rays(img_idx,
     torch.cuda.empty_cache()
 
     # construct points at t+-eps
-    eps = random.uniform(0, 1)
-    img_idx_rep_post_eps = torch.ones_like(pts[:, :, 0:1]) * (img_idx + eps*1./num_img * 2. )
-    pts_post_eps = torch.cat([(pts_ref[:, :, :3] + eps*raw_sf_ref2post), img_idx_rep_post_eps] , -1)
+    img_idx_rep_post_eps = torch.ones_like(pts[:, :, 0:1]) * (img_idx + epsilon*1./num_img * 2. )
+    pts_post_eps = torch.cat([(pts_ref[:, :, :3] + epsilon*raw_sf_ref2post), img_idx_rep_post_eps] , -1)
 
-    img_idx_rep_prev_eps = torch.ones_like(pts[:, :, 0:1]) * (img_idx - eps*1./num_img * 2. )
-    pts_prev_eps = torch.cat([(pts_ref[:, :, :3] + eps*raw_sf_ref2prev), img_idx_rep_prev_eps] , -1)
+    img_idx_rep_prev_eps = torch.ones_like(pts[:, :, 0:1]) * (img_idx - epsilon*1./num_img * 2. )
+    pts_prev_eps = torch.cat([(pts_ref[:, :, :3] + epsilon*raw_sf_ref2prev), img_idx_rep_prev_eps] , -1)
 
     # render from t - eps
     raw_prev_eps = network_query_fn(pts_prev_eps, viewdirs, network_fn)

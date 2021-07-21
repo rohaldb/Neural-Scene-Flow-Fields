@@ -6,5 +6,9 @@ scipy
 imageio
 av
 tqdm
+tensorflow
+gdown
+imageio-ffmpeg
+moviepy
 #uncomment if outside of google colab
 #cupy

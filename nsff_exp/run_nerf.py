@@ -524,10 +524,10 @@ def train():
 
         render_loss += compute_mse(ret['rgb_map_post_eps_dy'],
                                    target_rgb,
-                                   weight_map_post.unsqueeze(-1))
+                                   ret['epsilon']*weight_map_post.unsqueeze(-1))
         render_loss += compute_mse(ret['rgb_map_prev_eps_dy'],
                                    target_rgb,
-                                   weight_map_prev.unsqueeze(-1))
+                                   ret['epsilon']*weight_map_prev.unsqueeze(-1))
 
         # union rendering loss
         render_loss += img2mse(ret['rgb_map_ref'][:N_rand, ...], 

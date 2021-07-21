@@ -1,7 +1,7 @@
 expname = kid-running_ndc_5f_sv_of_sm_unify3_testing
 
 basedir = ./logs
-datadir = /content/nerf_data/kid-running/dense
+datadir = /home/jupyter/nerf_data/kid-running/dense
 
 dataset_type = llff
 
