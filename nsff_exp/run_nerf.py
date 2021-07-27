@@ -154,6 +154,8 @@ def config_parser():
                         help='frequency of console printout and metric loggin')
     parser.add_argument("--i_img",     type=int, default=500, 
                         help='frequency of tensorboard image logging')
+    parser.add_argument("--i_vid", type=int, default=500,
+                        help='frequency of tensorboard video logging')
     parser.add_argument("--i_weights", type=int, default=10000, 
                         help='frequency of weight ckpt saving')
 
@@ -331,7 +333,7 @@ def train():
 
     poses = torch.Tensor(poses).to(device)
 
-    N_iters = 10000#500 * 1000 #1000000
+    N_iters = 15000 + 1
     print('Begin')
     print('TRAIN views are', i_train)
     print('TEST views are', i_test)
@@ -692,16 +694,12 @@ def train():
 
         # """
         if i%args.i_img == 0 and i > 0:
-            # img_i = np.random.choice(i_val)
             print("writing images")
-
             #write the target image:
             img_i = target_idx
-
             target = images[img_i]
             pose = poses[img_i, :3,:4]
             target_depth = depths[img_i] - torch.min(depths[img_i])
-
             img_idx_embed = img_i/num_img * 2. - 1.0
 
             if img_i == 0:
@@ -749,7 +747,12 @@ def train():
                                  global_step=i, dataformats='HWC')
                 writer.add_image("val/depth_map_ref", normalize_depth(ret['depth_map_ref']),
                                 global_step=i, dataformats='HW')
-               
+
+                writer.add_image("val/ref_from_prev", torch.clamp(ret['rgb_map_prev_dy'], 0., 1.),
+                                 global_step=i, dataformats='HWC')
+                writer.add_image("val/ref_from_post", torch.clamp(ret['rgb_map_post_dy'], 0., 1.),
+                                 global_step=i, dataformats='HWC')
+
                 writer.add_image("val/gt_rgb", target, 
                                 global_step=i, dataformats='HWC')
                 writer.add_image("val/monocular_disp", 
@@ -761,34 +764,40 @@ def train():
                 writer.add_image("val/render_flow_bwd_rgb", render_flow_bwd_rgb, 
                                 global_step=i, dataformats='HWC')
 
-
-                ### write video to tensorboard ###
-
+        if i % args.i_vid == 0 and i > 0:
+            with torch.no_grad():
+                print("writing video")
+                torch.cuda.empty_cache()
+                img_i = target_idx
                 num_img = float(poses.shape[0])
                 ref_c2w = torch.Tensor(ref_c2w).to(device)
-                pose = poses[target_idx, :3, :4]
-                render_poses = torch.Tensor(render_poses).to(device)
+                pose = poses[img_i, :3, :4]
+                img_idx_embed = img_i / num_img * 2. - 1.0
 
                 testsavedir = os.path.join(basedir, expname, 'render-lockcam-slowmo')
                 os.makedirs(testsavedir, exist_ok=True)
                 video_path = render_lockcam_slowmo(ref_c2w, num_img, hwf,
-                                      args.chunk, render_kwargs_train, render_kwargs_test, pose,
-                                      gt_imgs=images, savedir=testsavedir,
-                                      render_factor=args.render_factor,
-                                      target_idx=target_idx,
-                                      skip_blending=True,
-                                      output_flow=False
-                                      )
+                                                   args.chunk, render_kwargs_train, render_kwargs_test, pose,
+                                                   gt_imgs=images, savedir=testsavedir,
+                                                   render_factor=args.render_factor,
+                                                   target_idx=target_idx,
+                                                   skip_blending=True,
+                                                   output_flow=False
+                                                   )
 
                 write_video_to_tensorboard(video_path, "lockcam-slomo", i, writer)
 
+                torch.cuda.empty_cache()
+
+                # uncomment this line to use spiral poses
+                # render_poses = torch.Tensor(render_poses).to(device)
                 bt_render_poses = linearly_interpolate_poses(poses.cpu().numpy(), 10)
                 testsavedir = os.path.join(basedir, expname, 'render-spiral-frame')
                 os.makedirs(testsavedir, exist_ok=True)
                 video_path = render_bullet_time(bt_render_poses, img_idx_embed, num_img, hwf,
-                                   args.chunk, render_kwargs_test,
-                                   gt_imgs=images, savedir=testsavedir,
-                                   render_factor=args.render_factor)
+                                                args.chunk, render_kwargs_test,
+                                                gt_imgs=images, savedir=testsavedir,
+                                                render_factor=args.render_factor)
 
                 write_video_to_tensorboard(video_path, "bullet-time", i, writer)
 
