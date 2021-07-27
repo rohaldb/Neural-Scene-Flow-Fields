@@ -584,14 +584,14 @@ def run_network(inputs, viewdirs, fn, embed_fn, embeddirs_fn, netchunk=1024*16):
 
 
 def batchify_rays(img_idx, chain_bwd, chain_5frames, 
-                num_img, rays_flat, chunk=1024*16, **kwargs):
+                num_img, rays_flat, time_increment, chunk=1024*16, **kwargs):
     """Render rays in smaller minibatches to avoid OOM.
     """
 
     all_ret = {}
     for i in range(0, rays_flat.shape[0], chunk):
         ret = render_rays(img_idx, chain_bwd, chain_5frames, 
-                        num_img, rays_flat[i:i+chunk], **kwargs)
+                        num_img, rays_flat[i:i+chunk], time_increment, **kwargs)
         for k in ret:
             if k not in all_ret:
                 all_ret[k] = []
@@ -607,6 +607,7 @@ def render(img_idx, chain_bwd, chain_5frames,
            chunk=1024*16, rays=None, c2w=None, ndc=True,
            near=0., far=1.,
            use_viewdirs=False, c2w_staticcam=None,
+           time_increment=1,
            **kwargs):
     """Render rays
     Args:
@@ -664,7 +665,7 @@ def render(img_idx, chain_bwd, chain_5frames,
 
     # Render and reshape
     all_ret = batchify_rays(img_idx, chain_bwd, chain_5frames, 
-                        num_img, rays, chunk, **kwargs)
+                        num_img, rays, time_increment, chunk, **kwargs)
     for k in all_ret:
         k_sh = list(sh[:-1]) + list(all_ret[k].shape[1:])
         all_ret[k] = torch.reshape(all_ret[k], k_sh)
@@ -1028,6 +1029,7 @@ def render_rays(img_idx,
                 chain_5frames,
                 num_img,
                 ray_batch,
+                time_increment,
                 network_fn,
                 network_query_fn, 
                 rigid_network_query_fn,
@@ -1140,22 +1142,20 @@ def render_rays(img_idx,
         ret['raw_sf_ref2post'] = raw_sf_ref2post
         ret['raw_pts_ref'] = pts_ref[:, :, :3]
 
-    eps = random.uniform(0, 1)
+    img_idx_rep_post = torch.ones_like(pts[:, :, 0:1]) * (img_idx + time_increment*1./num_img * 2. )
+    pts_post = torch.cat([(pts_ref[:, :, :3] + time_increment*raw_sf_ref2post), img_idx_rep_post] , -1)
 
-    img_idx_rep_post = torch.ones_like(pts[:, :, 0:1]) * (img_idx + eps*1./num_img * 2. )
-    pts_post = torch.cat([(pts_ref[:, :, :3] + eps*raw_sf_ref2post), img_idx_rep_post] , -1)
+    img_idx_rep_prev = torch.ones_like(pts[:, :, 0:1]) * (img_idx - time_increment*1./num_img * 2. )
+    pts_prev = torch.cat([(pts_ref[:, :, :3] + time_increment*raw_sf_ref2prev), img_idx_rep_prev] , -1)
 
-    img_idx_rep_prev = torch.ones_like(pts[:, :, 0:1]) * (img_idx - eps*1./num_img * 2. )
-    pts_prev = torch.cat([(pts_ref[:, :, :3] + eps*raw_sf_ref2prev), img_idx_rep_prev] , -1)
-
-    # render points at t - eps
+    # render points at t - time_increment
     raw_prev = network_query_fn(pts_prev, viewdirs, network_fn)
     raw_rgba_prev = raw_prev[:, :, :4]
     raw_sf_prev2prevprev = raw_prev[:, :, 4:7]
     raw_sf_prev2ref = raw_prev[:, :, 7:10]
     # raw_blend_w_prev = raw_prev[:, :, 12]
 
-    # render from t - eps
+    # render from t - time_increment
     rgb_map_prev_dy, _, weights_prev_dy = raw2outputs_warp(raw_rgba_prev,
                                                            z_vals, rays_d, 
                                                            raw_noise_std)
@@ -1166,7 +1166,7 @@ def render_rays(img_idx,
     ret['raw_sf_prev2ref'] = raw_sf_prev2ref
     ret['rgb_map_prev_dy'] = rgb_map_prev_dy
     
-    # render points at t + eps
+    # render points at t + time_increment
     raw_post = network_query_fn(pts_post, viewdirs, network_fn)
     raw_rgba_post = raw_post[:, :, :4]
     raw_sf_post2ref = raw_post[:, :, 4:7]

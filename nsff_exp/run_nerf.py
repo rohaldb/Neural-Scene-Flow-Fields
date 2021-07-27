@@ -493,6 +493,7 @@ def train():
                      num_img, H, W, focal, 
                      chunk=args.chunk, rays=batch_rays,
                      verbose=i < 10, retraw=True,
+                     time_increment=random.uniform(0,1),
                      **render_kwargs_train)
 
         pose_post = poses[min(img_i + 1, int(num_img) - 1), :3,:4]
